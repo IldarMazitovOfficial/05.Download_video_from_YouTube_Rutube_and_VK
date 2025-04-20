@@ -1,7 +1,7 @@
-# ютюб best* 4к* 1080* 480* 360* 240* 144* mp3*
-# рутюб best 4к 1080 480 360 240* 144 mp3*   https://rutube.ru/video/c9a3f7d4c6db1c6cb86c1dcc6fefc938/
-# вк best 4к 1080 480 360 240 144 mp3        https://vkvideo.ru/video-223532369_456239398
-
+# ютюб best 4к 2к 1080 480 360 240 144 mp3    https://www.youtube.com/watch?v=e6pxeEXNelw
+# рутюб best 4к 2к 1080 480 360 240* 144 mp3*         https://rutube.ru/video/c9a3f7d4c6db1c6cb86c1dcc6fefc938/
+# вк best 4к 2к 1080 480 360 240 144 mp3              https://vkvideo.ru/video-223532369_456239398
+# https://rutube.ru/video/f3db24872caf7e47a6b060732ec6d3c5/
 
 import yt_dlp
 import os
