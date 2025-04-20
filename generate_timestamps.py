@@ -1,3 +1,8 @@
+# ютюб best* 4к* 1080* 480* 360* 240* 144* mp3*
+# рутюб best 4к 1080 480 360 240* 144 mp3*   https://rutube.ru/video/c9a3f7d4c6db1c6cb86c1dcc6fefc938/
+# вк best 4к 1080 480 360 240 144 mp3        https://vkvideo.ru/video-223532369_456239398
+
+
 import yt_dlp
 import os
 import getpass
@@ -19,6 +24,10 @@ def get_platform(url):
         return "rutube"
     return "unknown"
 
+def show_available_resolutions(formats):
+    print("\n📺 Доступные форматы:")
+    for f in formats:
+        print(f"- id: {f.get('format_id')}, height: {f.get('height')}, note: {f.get('format_note')}, ext: {f.get('ext')}")
 
 def show_quality_menu():
     print("\nЧто Вы хотите скачать?")
@@ -66,14 +75,14 @@ def get_format_by_choice(choice, is_rutube=False):
     extension = ext_map.get(choice, "mp4")
     return format_str, extension, quality_suffix
 
-    if platform == "rutube" and choice == "9":
-        print("⚠ RuTube не поддерживает загрузку только аудио (MP3). Выберите другое качество.")
-        continue
-
-
 def get_available_formats(url):
     try:
-        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+        cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+        ydl_opts = {
+            'quiet': True,
+            'cookiefile': cookies_path if os.path.exists(cookies_path) else None
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             formats = info.get("formats", [])
             if not formats:
@@ -84,19 +93,38 @@ def get_available_formats(url):
         return [], "video"
 
 
+
+
 def is_format_available(formats, selected_format):
     if selected_format in ["best", "bestvideo+bestaudio/best"]:
         return True
     if selected_format == "bestaudio":
         return any(f.get("acodec") != "none" for f in formats)
 
+    # height-based check
     match = re.search(r"height=(\d+)", selected_format)
     if match:
         target_height = int(match.group(1))
-        return any(f.get("height") == target_height for f in formats)
+        for f in formats:
+            if f.get("height") == target_height:
+                return True
+
+        # ➕ Дополнительная проверка для RuTube — через format_note
+        height_map = {
+            144: "low",
+            240: "low",
+            360: "medium",
+            480: "medium",
+            720: "high",
+            1080: "ultra",
+            1440: "ultra",
+            2160: "ultra",
+        }
+        note = height_map.get(target_height)
+        if note:
+            return any(note in (f.get("format_note") or "").lower() for f in formats)
 
     return False
-
 
 def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "_", name)
