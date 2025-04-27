@@ -1,18 +1,49 @@
-# ютюб best 4к 2к 1080 480 360 240 144 mp3    https://www.youtube.com/watch?v=e6pxeEXNelw
-# рутюб best 4к 2к 1080 480 360 240* 144 mp3*         https://rutube.ru/video/c9a3f7d4c6db1c6cb86c1dcc6fefc938/
-# вк best 4к 2к 1080 480 360 240 144 mp3              https://vkvideo.ru/video-223532369_456239398
-# https://rutube.ru/video/f3db24872caf7e47a6b060732ec6d3c5/
-
 import yt_dlp
 import os
-import getpass
+import sys
 import re
+import getpass
+import customtkinter as ctk
+import tkinter as tk
+from tkinter import messagebox
+import threading
+import pyperclip
+import time
 
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+app = ctk.CTk()
+app.title("MazitovFASTdownloader v.1.0")
+app.geometry("700x450")
+
+formats = []
+title = ""
+status_text = ctk.StringVar()
+status_text.set("")
+
+downloading = False  # глобальный флаг для анимации
+
+def create_entry_with_context_menu(master, **kwargs):
+    entry = ctk.CTkEntry(master, **kwargs)
+    menu = tk.Menu(entry, tearoff=0)
+    menu.add_command(label="Вставить", command=lambda: entry.event_generate('<<Paste>>'))
+    def do_popup(event):
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+    entry.bind("<Button-3>", do_popup)
+    return entry
+
+def resource_path(relative_path):
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 def get_download_path():
     user = getpass.getuser()
     return os.path.join("C:\\Users", user, "Downloads")
-
 
 def get_platform(url):
     url = url.lower()
@@ -24,56 +55,8 @@ def get_platform(url):
         return "rutube"
     return "unknown"
 
-def show_available_resolutions(formats):
-    print("\n📺 Доступные форматы:")
-    for f in formats:
-        print(f"- id: {f.get('format_id')}, height: {f.get('height')}, note: {f.get('format_note')}, ext: {f.get('ext')}")
-
-def show_quality_menu():
-    print("\nЧто Вы хотите скачать?")
-    print("0. Просто ЛУЧШЕЕ качество видео, которое существует")
-    print("1. 4K")
-    print("2. 2K")
-    print("3. 1080p")
-    print("4. 720p")
-    print("5. 480p")
-    print("6. 360p")
-    print("7. 240p")
-    print("8. 144p")
-    print("9. MP3")
-    print("10. НАЗАД")
-
-
-def show_available_resolutions(formats):
-    resolutions = sorted(set(f.get("height") for f in formats if f.get("height")), reverse=True)
-
-
-def get_format_by_choice(choice, is_rutube=False):
-    base_fmt = "best[height={h}]" if is_rutube else "bestvideo[height={h}]+bestaudio"
-
-    video_formats = {
-        "0": ("bestvideo+bestaudio/best", "BEST"),
-        "1": (base_fmt.format(h=2160), "2160p"),
-        "2": (base_fmt.format(h=1440), "1440p"),
-        "3": (base_fmt.format(h=1080), "1080p"),
-        "4": (base_fmt.format(h=720), "720p"),
-        "5": (base_fmt.format(h=480), "480p"),
-        "6": (base_fmt.format(h=360), "360p"),
-        "7": (base_fmt.format(h=240), "240p"),
-        "8": (base_fmt.format(h=144), "144p"),
-        "9": ("bestaudio", "mp3"),
-    }
-
-    ext_map = {
-        "9": "mp3"
-    }
-
-    if choice == "10":
-        return None, None, None
-
-    format_str, quality_suffix = video_formats.get(choice, ("best", ""))
-    extension = ext_map.get(choice, "mp4")
-    return format_str, extension, quality_suffix
+def sanitize_filename(name):
+    return re.sub(r'[\\/*?:"<>|]', "_", name)
 
 def get_available_formats(url):
     try:
@@ -84,55 +67,43 @@ def get_available_formats(url):
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            formats = info.get("formats", [])
-            if not formats:
-                raise yt_dlp.utils.DownloadError("Форматы видео не найдены (возможно, видео приватное или защищено).")
-            return formats, info.get("title", "video")
+            return info.get("formats", []), info.get("title", "video")
     except yt_dlp.utils.DownloadError as e:
-        print(f"\n❌ Ошибка при получении информации о видео:\n{e}")
-        return [], "video"
+        status_text.set("❌ Ошибка загрузки информации")
+        return [], ""
 
+def start_download():
+    threading.Thread(target=_start_download).start()
 
+def _start_download():
+    global downloading
+    url = url_entry.get().strip()
+    selected_quality = quality_combobox.get()
 
+    if not url:
+        status_text.set("⚠ Введите ссылку на видео")
+        return
 
-def is_format_available(formats, selected_format):
-    if selected_format in ["best", "bestvideo+bestaudio/best"]:
-        return True
-    if selected_format == "bestaudio":
-        return any(f.get("acodec") != "none" for f in formats)
+    platform = get_platform(url)
+    if platform == "unknown":
+        status_text.set("⚠ Сайт не поддерживается")
+        return
 
-    # height-based check
-    match = re.search(r"height=(\d+)", selected_format)
-    if match:
-        target_height = int(match.group(1))
-        for f in formats:
-            if f.get("height") == target_height:
-                return True
+    if selected_quality == "Выберите качество":
+        status_text.set("⚠ Выберите качество")
+        return
 
-        # ➕ Дополнительная проверка для RuTube — через format_note
-        height_map = {
-            144: "low",
-            240: "low",
-            360: "medium",
-            480: "medium",
-            720: "high",
-            1080: "ultra",
-            1440: "ultra",
-            2160: "ultra",
-        }
-        note = height_map.get(target_height)
-        if note:
-            return any(note in (f.get("format_note") or "").lower() for f in formats)
+    formats, title = get_available_formats(url)
+    if not formats:
+        status_text.set("⚠ Форматы не найдены")
+        return
 
-    return False
+    selected_format = format_mapping.get(selected_quality, "best")
+    extension = "mp4" if selected_quality != "MP3" else "mp3"
+    quality_suffix = selected_quality
 
-def sanitize_filename(name):
-    return re.sub(r'[\\/*?:"<>|]', "_", name)
-
-
-def download_video(url, selected_format, extension, quality_suffix, video_title):
     download_path = get_download_path()
-    safe_title = sanitize_filename(video_title)
+    safe_title = sanitize_filename(title)
     base_filename = f"{safe_title}_{'[' + quality_suffix + ']' if quality_suffix else ''}".strip("_")
 
     ydl_opts = {
@@ -140,6 +111,7 @@ def download_video(url, selected_format, extension, quality_suffix, video_title)
         'outtmpl': os.path.join(download_path, base_filename + '.%(ext)s'),
         'noplaylist': True,
         'merge_output_format': extension,
+        'progress_hooks': [progress_hook],
     }
 
     if extension == "mp3":
@@ -151,53 +123,110 @@ def download_video(url, selected_format, extension, quality_suffix, video_title)
             }]
         })
 
-    ffmpeg_path = os.path.join(os.path.dirname(__file__), 'ffmpeg.exe')
+    ffmpeg_path = resource_path('ffmpeg.exe')
     if os.path.exists(ffmpeg_path):
         ydl_opts['ffmpeg_location'] = ffmpeg_path
 
-    print("Скачивание началось...")
     try:
+        downloading = True
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        print(f"✅ Файл сохранён как: {base_filename}.{extension}\n→ Путь: {download_path}")
+        downloading = False
+        status_text.set("✅ Скачивание завершено!")
+        progress_bar.configure(progress_color="green")
+        progress_bar.set(1)
     except yt_dlp.utils.DownloadError as e:
-        print(f"Ошибка при скачивании: {e}")
+        downloading = False
+        status_text.set(f"❌ Ошибка при скачивании")
+        progress_bar.configure(progress_color="red")
+        progress_bar.set(0)
 
+def fetch_formats():
+    global formats, title
+    url = url_entry.get().strip()
 
-if __name__ == "__main__":
+    if not url:
+        status_text.set("⚠ Введите ссылку на видео!")
+        return
+
+    formats, title = get_available_formats(url)
+    if not formats:
+        status_text.set("⚠ Не найдены форматы")
+        return
+
+    available_qualities = ["Лучшее качество", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "MP3"]
+    quality_combobox.configure(values=available_qualities)
+    quality_combobox.set("Лучшее качество")
+
+def paste_from_clipboard():
+    clipboard_text = pyperclip.paste()
+    url_entry.delete(0, tk.END)
+    url_entry.insert(0, clipboard_text)
+    fetch_formats()
+
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        downloaded = d.get('_percent_str', '0.0%')
+        downloaded = downloaded.strip().replace('%', '')
+        try:
+            progress_bar.set(float(downloaded) / 100)
+        except:
+            pass
+
+def animate_progress():
+    # Плавная анимация при скачивании
     while True:
-        video_url = input("\nВведите ссылку на видео (YouTube, VK, RuTube): ").strip()
-        if video_url.lower() == "exit":
-            break
+        if downloading:
+            current = progress_bar.get()
+            progress_bar.set(min(current + 0.002, 1))
+        time.sleep(0.02)
 
-        if not video_url.startswith("http"):
-            print("⚠ Некорректная ссылка.")
-            continue
+# Интерфейс
+frame = ctk.CTkFrame(app, fg_color="transparent")
+frame.pack(expand=True)
 
-        platform = get_platform(video_url)
-        if platform == "unknown":
-            print("⚠ Сайт не поддерживается.")
-            continue
+url_label = ctk.CTkLabel(frame, text="ВВЕДИТЕ ССЫЛКУ НА ВИДЕО:", font=("Arial", 30))
+url_label.pack(pady=(0, 0))
 
-        formats, title = get_available_formats(video_url)
-        if not formats:
-            print("⚠ Пропускаем ссылку. Форматы не найдены.")
-            continue
+url_label = ctk.CTkLabel(frame, text="(youtube.com, rutube.com, vkvideo.ru)", font=("Arial", 13))
+url_label.pack(pady=(1, 1))
 
-        show_available_resolutions(formats)
+url_entry = create_entry_with_context_menu(frame, width=450, height=35)
+url_entry.pack(pady=(5, 10))
 
-        while True:
-            show_quality_menu()
-            choice = input("Введите номер (0–10): ").strip()
-            is_rutube = platform == "rutube"
-            selected_format, extension, quality_suffix = get_format_by_choice(choice, is_rutube=is_rutube)
+progress_bar = ctk.CTkProgressBar(frame, width=450, height=12, progress_color="red")
+progress_bar.set(0)
+progress_bar.pack(pady=(0, 20))
 
-            if selected_format is None:
-                print("Возврат к вводу ссылки.")
-                break
+paste_button = ctk.CTkButton(frame, text="Вставить ссылку", command=paste_from_clipboard, width=200, height=35)
+paste_button.pack(pady=(0, 15))
 
-            if is_format_available(formats, selected_format):
-                download_video(video_url, selected_format, extension, quality_suffix, title)
-                break
-            else:
-                print("⚠ Такого качества нет. Попробуйте выбрать другой вариант.")
+quality_combobox = ctk.CTkComboBox(frame, width=300, height=35, values=[
+    "Лучшее качество", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p", "MP3"
+])
+quality_combobox.set("Выберите качество")
+quality_combobox.pack(pady=(0, 15))
+
+start_button = ctk.CTkButton(frame, text="Скачать", command=start_download, width=200, height=40)
+start_button.pack(pady=(0, 15))
+
+status_label = ctk.CTkLabel(frame, textvariable=status_text, font=("Arial", 16))
+status_label.pack(pady=(10, 10))
+
+format_mapping = {
+    "Лучшее качество": "bestvideo+bestaudio/best",
+    "2160p": "bestvideo[height=2160]+bestaudio",
+    "1440p": "bestvideo[height=1440]+bestaudio",
+    "1080p": "bestvideo[height=1080]+bestaudio",
+    "720p": "bestvideo[height=720]+bestaudio",
+    "480p": "bestvideo[height=480]+bestaudio",
+    "360p": "bestvideo[height=360]+bestaudio",
+    "240p": "bestvideo[height=240]+bestaudio",
+    "144p": "bestvideo[height=144]+bestaudio",
+    "MP3": "bestaudio"
+}
+
+# Запускаем анимацию прогресс-бара
+threading.Thread(target=animate_progress, daemon=True).start()
+
+app.mainloop()
